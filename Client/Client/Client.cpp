@@ -52,7 +52,7 @@ bool Menu(const char* command) {
 // Send thread function
 int send0(SOCKET s) {
 	std::string buf;
-	do {
+	while (true) {
 		std::cout << name << " : "; std::getline(std::cin, buf);
 		if (Menu(buf.c_str())) continue; 
 		if (buf.length() > 0) {
@@ -73,7 +73,8 @@ int send0(SOCKET s) {
 				return 1;
 			}
 		}
-	} while (buf.length() > 0);
+		Sleep(10);
+	} 
 	return 0;
 }
 

@@ -5,7 +5,7 @@
 #include <string>
 #include <thread>
 #include <vector>
-#define _CRT_SEXURE_NO_WARNINGS
+#define _CRT_SECURE_NO_WARNINGS
 #pragma warning(disable: 4996) // For strcat
 #pragma warning(disable: 6319) // For FD func
 
@@ -43,6 +43,7 @@ int recvAndSendToClients(SOCKET s) {
 			std::cout << "Server: ";
 			for (int i = 0; i < master.fd_count; i++) {
 				if (master.fd_array[i] != s) { 
+					send(master.fd_array[i], (char*)&msg_size, sizeof(int), 0);
 					send(master.fd_array[i], msg, msg_size, 0); // Send msg to everyone exept source user
 				}
 			}
