@@ -1,5 +1,6 @@
 ﻿#pragma comment(lib, "Ws2_32.lib")
 #include <ws2tcpip.h>
+#include <WinSock2.h>
 #include <iostream>
 #include <string>
 #include <thread>
@@ -7,80 +8,93 @@
 #define _CRT_SEXURE_NO_WARNINGS
 #pragma warning(disable: 4996) // For strcat
 #pragma warning(disable: 6319) // For FD func
-using namespace std;
 
 #define DEFAULT_PORT 54000
 
 fd_set master;
-vector<string> userlist;
+std::vector<std::string> userlist;
 
 // Receive message and send to other client socks
 int recvAndSendToClients(SOCKET s) {
-	char client_name[50];
-	recv(s, client_name, 50, 0);  // Get user name
-
-	char welcome_message[80] = "Server: welcome to the chat server "; 
-	strcat(welcome_message, client_name); // Concatinate with user name
+	int size_name, welcome_msg_size;
+	recv(s, (char*)&size_name, sizeof(int), 0);
+	char* client_n = new char[size_name+1];
+	client_n[size_name] = '\0';
+	recv(s, client_n, size_name, 0);  // Get user name
+	std::string welcome_msg = "Server: Welcome to the chat server ";
+	welcome_msg += client_n; // Concatinate welcome msg with user name
+	welcome_msg_size = welcome_msg.size();
 	for (int i = 0; i < master.fd_count; i++) {
-		send(master.fd_array[i], welcome_message, strlen(welcome_message), 0); // Send welc msg
+		send(master.fd_array[i], (char*)&welcome_msg_size, sizeof(int), 0); // Send size of msg
+		send(master.fd_array[i], welcome_msg.c_str(), welcome_msg.size(), 0); // Send welcome msg
 	}
 	std::cout << '\r';
-	std::cout << client_name << " connected" << std::endl; 
+	std::cout << client_n << " connected" << std::endl; 
 	std::cout << "Server: ";
 	while (true) {
-		char recvbuf[4096];
-		ZeroMemory(recvbuf, 4096);
-		int result = recv(s, recvbuf, 4096, 0); // Check getted data
+		int msg_size;
+		int result = recv(s, (char*)&msg_size, sizeof(int), 0); // Check getted data
+		char* msg = new char[msg_size+1];
+		msg[msg_size] = '\0';
 		if (result > 0) {
-			cout << '\r';
-			cout << recvbuf << endl;
-			cout << "Server: ";
+			recv(s, msg, msg_size, 0);
+			std::cout << '\r';
+			std::cout << msg << std::endl;
+			std::cout << "Server: ";
 			for (int i = 0; i < master.fd_count; i++) {
 				if (master.fd_array[i] != s) { 
-					send(master.fd_array[i], recvbuf, strlen(recvbuf), 0); // Send msg to everyone exept source user
+					send(master.fd_array[i], msg, msg_size, 0); // Send msg to everyone exept source user
 				}
 			}
 		}
 		else if (result == 0) {
 			// Annouce server about disconnection
 			FD_CLR(s, &master);
-			cout << '\r';
-			cout << "A client disconnected" << endl; 
-			cout << "Server: ";
+			std::cout << '\r';
+			std::cout << "A client disconnected: " << client_n << std::endl;
+			std::cout << "Server: ";
 			// Annouce to others
 			for (int i = 0; i < master.fd_count; i++) {
-				char disconnected_message[] = "Server : A client disconnected";
-				send(master.fd_array[i], disconnected_message, strlen(disconnected_message), 0);
+				std::string disconnected_msg = "Server: A client disconnected: ";
+				disconnected_msg += client_n;
+				int disconnected_msg_size = disconnected_msg.size();
+				send(master.fd_array[i], (char*)&disconnected_msg_size, sizeof(int), 0);
+				send(master.fd_array[i], disconnected_msg.c_str(), disconnected_msg_size, 0);
 			}
 			return 1;
 		}
 		else {
 			// Show server reciving error
 			FD_CLR(s, &master);
-			cout << '\r';
-			cout << "a client receive failed: " << WSAGetLastError() << endl;
-			cout << "Server: ";
+			std::cout << '\r';
+			std::cout << "a client receive failed: " << WSAGetLastError() << std::endl;
+			std::cout << "Server: ";
 			// Annouce to others
 			for (int i = 0; i < master.fd_count; i++) {
-				char disconnected_message[] = "Server : A client disconnected";
-				send(master.fd_array[i], disconnected_message, strlen(disconnected_message), 0);
+				std::string disconnected_msg = "Server: A client disconnected: ";
+				disconnected_msg += client_n;
+				int disconnected_msg_size = disconnected_msg.size();
+				send(master.fd_array[i], (char*)&disconnected_msg_size, sizeof(int), 0);
+				send(master.fd_array[i], disconnected_msg.c_str(), disconnected_msg_size, 0);
 			}
 			return 2;
 		}
-	}
+		delete[] msg;
+	} 
+	delete[] client_n;
 }
 // Accept function 
 int accept0(SOCKET listenSOCK) {
 	while (true) {
 		SOCKET ClientSocket = accept(listenSOCK, NULL, NULL);
 		if (ClientSocket == INVALID_SOCKET) { // Check socket and give server info
-			cout << '\r';
-			cout << "accept error: " << WSAGetLastError() << endl;
-			cout << "Server: ";
+			std::cout << '\r';
+			std::cout << "accept error: " << WSAGetLastError() << std::endl;
+			std::cout << "Server: ";
 			closesocket(ClientSocket);
 		}
 		else {
-			thread handle(recvAndSendToClients, ClientSocket); //threat for main loop
+			std::thread handle(recvAndSendToClients, ClientSocket); //threat for main loop
 			handle.detach();
 			FD_SET(ClientSocket, &master);
 
@@ -89,17 +103,22 @@ int accept0(SOCKET listenSOCK) {
 }
 // Send message to all clients
 int sendAnouce() {
-	string buf;
+	std::string buf;
 	do {
-		cout << "Server: ";
-		getline(cin, buf);
+		std::cout << "Server: ";
+		std::getline(std::cin, buf);
 		buf = "Server: " + buf;
+		int buf_size = buf.size();
 		for (int i = 0; i < master.fd_count; i++) {
-			int result = send(master.fd_array[i], buf.c_str(), strlen(buf.c_str()), 0); 
+			int result = send(master.fd_array[i], (char*)&buf_size, sizeof(int), 0);
 			if (result == SOCKET_ERROR) { // Check for error sending
-				cout << '\r';
-				cout << "send to client " << i << " failed: " << WSAGetLastError() << endl;
-				cout << "Server: ";
+				std::cout << '\r';
+				std::cout << "send to client " << i << " failed: " << WSAGetLastError() << std::endl;
+				std::cout << "Server: ";
+			}
+			else
+			{
+				send(master.fd_array[i], buf.c_str(), buf_size, 0);
 			}
 		}
 	} while (true);
@@ -114,19 +133,19 @@ int main() {
 	WSADATA wsadata;			
 	result = WSAStartup(MAKEWORD(2, 2), &wsadata);
 	if (result != 0) { //Check for winsock err
-		cout << "WSAStartup error: " << result << endl;
+		std::cout << "WSAStartup error: " << result << std::endl;
 		return 1;
 	}
-	else cout << "WSAStartup OK" << endl;
+	else std::cout << "WSAStartup OK" << std::endl;
 
 	// Create listening SOCK
 	SOCKET listenSOCK = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 	if (listenSOCK == INVALID_SOCKET) {
-		cout << "listenSOCK error: " << WSAGetLastError() << endl; 
+		std::cout << "listenSOCK error: " << WSAGetLastError() << std::endl;
 		WSACleanup();
 		return 1;
 	}
-	else cout << "listenSOCK OK" << endl;
+	else std::cout << "listenSOCK OK" << std::endl;
 
 	// Bind addr and port to sock	
 	struct addrinfo* res = NULL;
@@ -137,53 +156,54 @@ int main() {
 	hints.ai_protocol = IPPROTO_TCP;
 	hints.ai_flags = AI_PASSIVE;
 	int port = -1;
-	cout << "Listen on port (default: 54000): ";
-	cin >> port;
-	if (port <= 0 || port > 65535) { // Check inputed port
-		cout << "Invalid, listen on 54000" << endl;			
+	std::cout << "Listen on port (default: 54000): ";
+	std::cin >> port;
+	// Check inputed port
+	if (port <= 0 || port > 65535) { 
+		std::cout << "Invalid, listen on 54000" << std::endl;
 		port = DEFAULT_PORT;								
-		result = getaddrinfo(NULL, to_string(DEFAULT_PORT).c_str(), &hints, &res);
+		result = getaddrinfo(NULL, std::to_string(DEFAULT_PORT).c_str(), &hints, &res);
 	}
 	else {
-		result = getaddrinfo(NULL, to_string(port).c_str(), &hints, &res);
+		result = getaddrinfo(NULL, std::to_string(port).c_str(), &hints, &res);
 	}
 	if (result != 0) { 
-		cout << "getaddrinfo error: " << WSAGetLastError() << endl;
+		std::cout << "getaddrinfo error: " << WSAGetLastError() << std::endl;
 		closesocket(listenSOCK);
 		WSACleanup();
 		return 1;
 	}
-	else cout << "getaddrinfo OK" << endl;
+	else std::cout << "getaddrinfo OK" << std::endl;
 	result = ::bind(listenSOCK, res->ai_addr, (int)res->ai_addrlen);
 	if (result == SOCKET_ERROR) {
-		cout << "bind error: " << WSAGetLastError() << endl;
+		std::cout << "bind error: " << WSAGetLastError() << std::endl;
 		closesocket(listenSOCK);
 		WSACleanup();
 		return 1;
 	}
-	else cout << "bind OK" << endl;
+	else std::cout << "bind OK" << std::endl;
 	freeaddrinfo(res);
 	 // Listening	
 	result = listen(listenSOCK, SOMAXCONN); 
 	if (result == SOCKET_ERROR) {
-		cout << "listen error: " << WSAGetLastError() << endl;
+		std::cout << "listen error: " << WSAGetLastError() << std::endl;
 		closesocket(listenSOCK);
 		WSACleanup();
 		return 1;
 	}
-	else cout << "listen OK" << endl;
-	cout << "Listening on port " << port << endl;
-	cout << endl << endl;
+	else std::cout << "listen OK" << std::endl;
+	std::cout << "Listening on port " << port << std::endl;
+	std::cout << std::endl << std::endl;
 	/*
 		Done bind
 	*/
 
 	// Accept thread
-	thread accept_thread(accept0, listenSOCK);
+	std::thread accept_thread(accept0, listenSOCK);
 	accept_thread.detach();
 
 	// Send anouce thread
-	thread send_thread(sendAnouce);
+	std::thread send_thread(sendAnouce);
 	send_thread.join();
 
 	// Cleanup

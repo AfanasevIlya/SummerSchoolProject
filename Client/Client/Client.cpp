@@ -1,13 +1,13 @@
 ﻿#pragma comment(lib, "Ws2_32.lib")
 #include <ws2tcpip.h>
 #include <iostream>
+#include <WinSock2.h>
 #include <string>
 #include <thread>
 
-using namespace std;
 
 SOCKET sock;
-string name;
+std::string name;
 const int COMMAND_COUNT = 2;
 const char* commands[] = { "exit", "set.new_name" }; //keep local command, we can also add smthg new
 
@@ -32,8 +32,8 @@ void EXIT() {
 }
 
 void NEW_N() {  
-	cout << "Input new name: ";
-	getline(cin, name);
+	std::cout << "Input new name: ";
+	std::getline(std::cin, name);
 }
 
 // Menu ( compare input of user and local commans
@@ -51,17 +51,25 @@ bool Menu(const char* command) {
 
 // Send thread function
 int send0(SOCKET s) {
-	string buf;
+	std::string buf;
 	do {
-		cout << name << " : "; getline(cin, buf);
+		std::cout << name << " : "; std::getline(std::cin, buf);
 		if (Menu(buf.c_str())) continue; 
 		if (buf.length() > 0) {
 			buf = name + ": " + buf;
-			if (send(s, buf.c_str(), strlen(buf.c_str()), 0) == SOCKET_ERROR) { // Check for sock errors
-				cout << "send failed: " << WSAGetLastError() << endl; 
+			int msg_size = buf.size();
+			if (send(s, (char*)&msg_size, sizeof(int), 0) == SOCKET_ERROR) {
+				std::cout << "send message size failed: " << WSAGetLastError() << std::endl;
 				closesocket(s);
 				WSACleanup();
-				getchar();
+				system("pause");
+				return 1;
+			}
+			if (send(s, buf.c_str(), msg_size, 0) == SOCKET_ERROR) { // Check for sock errors
+				std::cout << "send failed: " << WSAGetLastError() << std::endl;
+				closesocket(s);
+				WSACleanup();
+				system("pause");
 				return 1;
 			}
 		}
@@ -72,26 +80,32 @@ int send0(SOCKET s) {
 // Receive thread function
 int receive(SOCKET s) {
 	while (true) {
-		char recvbuf[4096];
-		ZeroMemory(recvbuf, 4096);
-		int result = recv(s, recvbuf, 4096, 0);
+		int msg_size;
+		if (recv(s, (char*)&msg_size, sizeof(int), 0) <= 0) { // Get msg size from server and check for error
+			std::cout << "Connection closed" << std::endl;
+			return 1;
+		}
+		char* msg = new char[msg_size + 1];
+		msg[msg_size] = '\0';
+		int result = recv(s, msg, msg_size, 0); // Get msg from server and show to client
 		if (result > 0) {
-			cout << '\r';
-			cout << recvbuf << endl;
-			cout << name << ": ";
+			std::cout << '\r';
+			std::cout << msg << std::endl;
+			std::cout << name << ": ";
 		}
 		else if (result == 0) {
-			cout << "Connection closed" << endl;
+			std::cout << "Connection closed" << std::endl;
 			return 1;
 		}
 		else {
-			cout << "recv failed: " << WSAGetLastError() << endl;
+			std::cout << "recv failed: " << WSAGetLastError() << std::endl;
 			closesocket(s);
 			WSACleanup();
-			getchar();
+			system("pause");
 			return 2;
-		}
-	}
+		} delete[] msg;
+	} 
+	
 }
 
 int main() {
@@ -100,11 +114,11 @@ int main() {
 	WSADATA wsaData;
 	result = WSAStartup(MAKEWORD(2, 2), &wsaData);
 	if (result != 0) {
-		cout << "Initialize Winsock Fail: " << result << endl;
-		getchar();
+		std::cout << "Initialize Winsock Fail: " << result << std::endl;
+		system("pause");
 		return 1;
 	}
-	else cout << "Initialize Winsock OK" << endl;
+	else std::cout << "Initialize Winsock OK" << std::endl;
 
 	// Resolve the server address and port
 	addrinfo hints, * res;
@@ -112,58 +126,61 @@ int main() {
 	hints.ai_family = AF_UNSPEC;
 	hints.ai_socktype = SOCK_STREAM;
 	hints.ai_protocol = IPPROTO_TCP;
-	string host; cout << "Host: "; getline(cin, host); 
-	string port; cout << "Port: "; getline(cin, port);
+	std::string host; std::cout << "Host: "; std::getline(std::cin, host);
+	std::string port; std::cout << "Port: "; std::getline(std::cin, port);
 	result = getaddrinfo(host.c_str(), port.c_str(), &hints, &res); // Check inputed host & port
 	if (result != 0) {
-		cout << "getaddrinfo failed: " << result << endl;
-		getchar();
+		std::cout << "getaddrinfo failed: " << result << std::endl;
+		system("pause");
 		return 1;
 	}
-	else cout << "getaddrinfo OK" << endl;
+	else std::cout << "getaddrinfo OK" << std::endl;
 
 	// Create connecting Sock
 	sock = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
 	if (sock == INVALID_SOCKET) {
-		cout << "Create connect sock failed: " << WSAGetLastError() << endl;
+		std::cout << "Create connect sock failed: " << WSAGetLastError() << std::endl;
 		WSACleanup();
-		getchar();
+		system("pause");
 		return 1;
 	}
-	else cout << "Create connect sock OK" << endl;
+	else std::cout << "Create connect sock OK" << std::endl;
 
 	// Connect 
 	result = connect(sock, res->ai_addr, (int)res->ai_addrlen);
 	if (result != 0) {
-		cout << "connect failed: " << WSAGetLastError() << endl;
-		getchar();
+		std::cout << "connect failed: " << WSAGetLastError() << std::endl;
+		system("pause");
 		closesocket(sock);
 		WSACleanup();
 		return 1;
 	}
-	else cout << "connect OK" << endl;
+	else std::cout << "connect OK" << std::endl;
 
 	freeaddrinfo(res);
-	cout << endl << endl;
+	std::cout << std::endl << std::endl;
 	/*
 		Done 
 	*/
 
-
-	cout << "What is your nickname? "; getline(cin, name);
-	send(sock, name.c_str(), strlen(name.c_str()), 0);
+	// Get user name and send it to server
+	std::cout << "What is your nickname? "; std::getline(std::cin, name);
+	int name_size = name.size();
+	send(sock, (char*)&name_size, sizeof(int), 0);
+	send(sock, name.c_str(), name_size, 0);
 
 
 	// Send thread
-	thread send_thread(send0, sock);
+	std::thread send_thread(send0, sock);
 	send_thread.detach();
 
 	// Receive thread
-	thread receive_thread(receive, sock);
+	std::thread receive_thread(receive, sock);
 	receive_thread.join();
 
 	// Cleanup
 	closesocket(sock);
 	WSACleanup();
+	system("pause");
 	return 0;
 }
