@@ -2,6 +2,6 @@
 D:\MyProjects\newProject\Server\Server\Server.cpp(27,20): warning C4018: <: несоответствие типов со знаком и без знака
 D:\MyProjects\newProject\Server\Server\Server.cpp(44,22): warning C4018: <: несоответствие типов со знаком и без знака
 D:\MyProjects\newProject\Server\Server\Server.cpp(58,22): warning C4018: <: несоответствие типов со знаком и без знака
-D:\MyProjects\newProject\Server\Server\Server.cpp(74,22): warning C4018: <: несоответствие типов со знаком и без знака
-D:\MyProjects\newProject\Server\Server\Server.cpp(113,21): warning C4018: <: несоответствие типов со знаком и без знака
+D:\MyProjects\newProject\Server\Server\Server.cpp(76,22): warning C4018: <: несоответствие типов со знаком и без знака
+D:\MyProjects\newProject\Server\Server\Server.cpp(118,21): warning C4018: <: несоответствие типов со знаком и без знака
   Server.vcxproj -> D:\MyProjects\newProject\Server\Debug\Server.exe

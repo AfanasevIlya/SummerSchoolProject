@@ -110,6 +110,7 @@ int accept0(SOCKET listenSOCK) {
 int sendAnouce() {
 	std::string buf;
 	do {
+		std::cout << '\r';
 		std::cout << "Server: ";
 		std::getline(std::cin, buf);
 		buf = "Server: " + buf;
