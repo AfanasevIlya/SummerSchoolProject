@@ -4,45 +4,44 @@
 #include <WinSock2.h>
 #include <string>
 #include <thread>
+#define DEFAULT_THREAD_SLEEP_TIMER 10
 
-
-SOCKET sock;
-std::string name;
+SOCKET g_sock;
+std::string g_name;
 const int COMMAND_COUNT = 2;
-const char* commands[] = { "exit", "set.new_name" }; //keep local command, we can also add smthg new
+const char* COMMANDS[] = { "exit", "set.new_name" }; //keep local command, we can also add smthg new
 
 
 
 
 // Exit function
-void EXIT() { 
+void exitProgramm() { 
 	char ask;
 	bool loop = true;
 	while (loop) {
 		std::cout << "Do you want to exit?" << std::endl << "Y/N?" << std::endl;
 		std::cin >> ask;
-		switch (ask) {
-		case 'y': closesocket(sock); WSACleanup(); exit(1);
-		case 'Y': closesocket(sock); WSACleanup(); exit(1);
+		switch (tolower(ask)) {
+		case 'y': closesocket(g_sock); WSACleanup(); exit(1);
 		case 'n': loop = false; break;
-		case 'N': loop = false; break;
 		default: continue;
 		}
 	}
 }
 
-void NEW_N() {  
+// Set new name function
+void newName() {  
 	std::cout << "Input new name: ";
-	std::getline(std::cin, name);
+	std::getline(std::cin, g_name);
 }
 
 // Menu ( compare input of user and local commans
-bool Menu(const char* command) {  
+bool menu(const char* command) {  
 	for (int i = 0; i < COMMAND_COUNT; ++i) {
-		if (strcmp(command, commands[i]) == 0) {
+		if (strcmp(command, COMMANDS[i]) == 0) {
 			switch (i) {
-			case 0: EXIT(); return true;
-			case 1: NEW_N(); return true;
+			case 0: exitProgramm(); return true;
+			case 1: newName(); return true;
 			}
 		}
 	}
@@ -53,27 +52,20 @@ bool Menu(const char* command) {
 int send0(SOCKET s) {
 	std::string buf;
 	while (true) {
-		std::cout << name << " : "; std::getline(std::cin, buf);
-		if (Menu(buf.c_str())) continue; 
+		std::cout << g_name << " : "; std::getline(std::cin, buf);
+		if (menu(buf.c_str())) continue; 
 		if (buf.length() > 0) {
-			buf = name + ": " + buf;
+			buf = g_name + ": " + buf;
 			int msg_size = buf.size();
 			if (send(s, (char*)&msg_size, sizeof(int), 0) == SOCKET_ERROR) {
 				std::cout << "send message size failed: " << WSAGetLastError() << std::endl;
 				closesocket(s);
 				WSACleanup();
-				system("pause");
 				return 1;
 			}
-			if (send(s, buf.c_str(), msg_size, 0) == SOCKET_ERROR) { // Check for sock errors
-				std::cout << "send failed: " << WSAGetLastError() << std::endl;
-				closesocket(s);
-				WSACleanup();
-				system("pause");
-				return 1;
-			}
+			send(s, buf.c_str(), msg_size, 0);
 		}
-		Sleep(10);
+		Sleep(DEFAULT_THREAD_SLEEP_TIMER);
 	} 
 	return 0;
 }
@@ -92,17 +84,18 @@ int receive(SOCKET s) {
 		if (result > 0) {
 			std::cout << '\r';
 			std::cout << msg << std::endl;
-			std::cout << name << ": ";
+			std::cout << g_name << ": ";
 		}
 		else if (result == 0) {
+			delete[] msg;
 			std::cout << "Connection closed" << std::endl;
 			return 1;
 		}
 		else {
 			std::cout << "recv failed: " << WSAGetLastError() << std::endl;
+			delete[] msg;
 			closesocket(s);
 			WSACleanup();
-			system("pause");
 			return 2;
 		} delete[] msg;
 	} 
@@ -116,7 +109,6 @@ int main() {
 	result = WSAStartup(MAKEWORD(2, 2), &wsaData);
 	if (result != 0) {
 		std::cout << "Initialize Winsock Fail: " << result << std::endl;
-		system("pause");
 		return 1;
 	}
 	else std::cout << "Initialize Winsock OK" << std::endl;
@@ -132,27 +124,24 @@ int main() {
 	result = getaddrinfo(host.c_str(), port.c_str(), &hints, &res); // Check inputed host & port
 	if (result != 0) {
 		std::cout << "getaddrinfo failed: " << result << std::endl;
-		system("pause");
 		return 1;
 	}
 	else std::cout << "getaddrinfo OK" << std::endl;
 
 	// Create connecting Sock
-	sock = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
-	if (sock == INVALID_SOCKET) {
+	g_sock = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+	if (g_sock == INVALID_SOCKET) {
 		std::cout << "Create connect sock failed: " << WSAGetLastError() << std::endl;
 		WSACleanup();
-		system("pause");
 		return 1;
 	}
 	else std::cout << "Create connect sock OK" << std::endl;
 
 	// Connect 
-	result = connect(sock, res->ai_addr, (int)res->ai_addrlen);
+	result = connect(g_sock, res->ai_addr, (int)res->ai_addrlen);
 	if (result != 0) {
 		std::cout << "connect failed: " << WSAGetLastError() << std::endl;
-		system("pause");
-		closesocket(sock);
+		closesocket(g_sock);
 		WSACleanup();
 		return 1;
 	}
@@ -165,23 +154,22 @@ int main() {
 	*/
 
 	// Get user name and send it to server
-	std::cout << "What is your nickname? "; std::getline(std::cin, name);
-	int name_size = name.size();
-	send(sock, (char*)&name_size, sizeof(int), 0);
-	send(sock, name.c_str(), name_size, 0);
+	std::cout << "What is your nickname? "; std::getline(std::cin, g_name);
+	int name_size = g_name.size();
+	send(g_sock, (char*)&name_size, sizeof(int), 0);
+	send(g_sock, g_name.c_str(), name_size, 0);
 
 
 	// Send thread
-	std::thread send_thread(send0, sock);
+	std::thread send_thread(send0, g_sock);
 	send_thread.detach();
 
 	// Receive thread
-	std::thread receive_thread(receive, sock);
+	std::thread receive_thread(receive, g_sock);
 	receive_thread.join();
 
 	// Cleanup
-	closesocket(sock);
+	closesocket(g_sock);
 	WSACleanup();
-	system("pause");
 	return 0;
 }

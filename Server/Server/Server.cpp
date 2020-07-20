@@ -12,7 +12,7 @@
 #define DEFAULT_PORT 54000
 
 fd_set master;
-std::vector<std::string> userlist;
+//std::vector<std::string> userlist;
 
 // Receive message and send to other client socks
 int recvAndSendToClients(SOCKET s) {
@@ -62,6 +62,8 @@ int recvAndSendToClients(SOCKET s) {
 				send(master.fd_array[i], (char*)&disconnected_msg_size, sizeof(int), 0);
 				send(master.fd_array[i], disconnected_msg.c_str(), disconnected_msg_size, 0);
 			}
+			delete[] msg;
+			delete[] client_n;
 			return 1;
 		}
 		else {
@@ -78,6 +80,8 @@ int recvAndSendToClients(SOCKET s) {
 				send(master.fd_array[i], (char*)&disconnected_msg_size, sizeof(int), 0);
 				send(master.fd_array[i], disconnected_msg.c_str(), disconnected_msg_size, 0);
 			}
+			delete[] msg;
+			delete[] client_n;
 			return 2;
 		}
 		delete[] msg;
@@ -95,7 +99,7 @@ int accept0(SOCKET listenSOCK) {
 			closesocket(ClientSocket);
 		}
 		else {
-			std::thread handle(recvAndSendToClients, ClientSocket); //threat for main loop
+			std::thread handle(recvAndSendToClients, ClientSocket); //thread for main loop
 			handle.detach();
 			FD_SET(ClientSocket, &master);
 
